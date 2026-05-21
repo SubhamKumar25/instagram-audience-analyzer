@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply transition-colors duration-300;
+  }
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background: rgba(15, 15, 23, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+}
+
+.light .glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.04);
+}
+
+/* Glassmorphism Inputs */
+.glass-input {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(167, 139, 250, 0.45);
+  box-shadow: 0 0 20px rgba(167, 139, 250, 0.15);
+  outline: none;
+}
+
+.light .glass-input {
+  background: rgba(0, 0, 0, 0.015);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.light .glass-input:focus {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(109, 40, 217, 0.4);
+  box-shadow: 0 0 20px rgba(109, 40, 217, 0.08);
+  outline: none;
+}
+
+/* Fine-tuned glass buttons */
+.glass-button {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.glass-button:hover {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.35) 0%, rgba(59, 130, 246, 0.35) 100%);
+  box-shadow: 0 0 25px rgba(167, 139, 250, 0.3);
+  transform: translateY(-2px);
+}
+
+.light .glass-button {
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.1) 0%, rgba(37, 99, 233, 0.1) 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.light .glass-button:hover {
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.18) 0%, rgba(37, 99, 233, 0.18) 100%);
+  box-shadow: 0 0 25px rgba(109, 40, 217, 0.15);
+}
+
+/* Premium dynamic scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(167, 139, 250, 0.15);
+  border-radius: 9px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(167, 139, 250, 0.35);
+}
+
+/* Radial light leaks */
+.radial-glow-dark {
+  background-image: radial-gradient(circle at 50% -25%, rgba(167, 139, 250, 0.18) 0%, transparent 60%);
+}
+
+.radial-glow-light {
+  background-image: radial-gradient(circle at 50% -25%, rgba(109, 40, 217, 0.08) 0%, transparent 60%);
+}
+
+/* Text linear gradients */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-indigo-300 to-blue-400;
+}
+
+.light .gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-600;
+}
+
+/* Dashboard metric gauges */
+.circular-progress {
+  transition: stroke-dashoffset 0.85s ease-in-out;
+}
