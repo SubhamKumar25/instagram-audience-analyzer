@@ -112,10 +112,74 @@ def generate_simulated_profile(username: str) -> Dict[str, Any]:
         "source": "simulated"
     }
 
+def parse_header_text(header_text: str, username: str) -> dict:
+    """
+    Parses hydrated header text to extract metrics (followers, following, posts)
+    and separate full name from biography.
+    """
+    lines = [line.strip() for line in header_text.split('\n') if line.strip()]
+    if not lines:
+        return {}
+        
+    posts = None
+    followers = None
+    following = None
+    
+    metric_indices = []
+    
+    # Parse metrics
+    for idx, line in enumerate(lines):
+        posts_match = re.search(r"^([\d.,]+[kKmM]?)\s+posts?$", line, re.IGNORECASE)
+        if posts_match:
+            posts = posts_match.group(1)
+            metric_indices.append(idx)
+            continue
+            
+        followers_match = re.search(r"^([\d.,]+[kKmM]?)\s+followers?$", line, re.IGNORECASE)
+        if followers_match:
+            followers = followers_match.group(1)
+            metric_indices.append(idx)
+            continue
+            
+        following_match = re.search(r"^([\d.,]+[kKmM]?)\s+following$", line, re.IGNORECASE)
+        if following_match:
+            following = following_match.group(1)
+            metric_indices.append(idx)
+            continue
+            
+    # If we found metrics, we can reconstruct the other parts
+    full_name = ""
+    bio = ""
+    
+    if metric_indices:
+        first_metric_idx = min(metric_indices)
+        last_metric_idx = max(metric_indices)
+        
+        # Name lines are between username (idx 0) and the first metric
+        name_lines = lines[1:first_metric_idx]
+        full_name = " ".join(name_lines).strip()
+        
+        # Bio lines are after the last metric
+        bio_lines = lines[last_metric_idx + 1:]
+        bio = "\n".join(bio_lines).strip()
+    else:
+        # Fallback if no metrics found in lines
+        full_name = lines[1] if len(lines) > 1 else username
+        bio = "\n".join(lines[2:]) if len(lines) > 2 else ""
+        
+    return {
+        "full_name": full_name or username,
+        "posts": posts,
+        "followers": followers,
+        "following": following,
+        "bio": bio
+    }
+
 async def scrape_instagram_profile(profile_url: str) -> Dict[str, Any]:
     """
     Attempts to scrape public profile info using stealth-enabled Playwright.
-    If blocked by Instagram (login walls / 429), it returns the simulated fallback.
+    Waits for header hydration to fetch real-time stats and accurate verification status.
+    If blocked by Instagram or timed out, it returns the simulated fallback.
     """
     username = extract_username(profile_url)
     
@@ -125,9 +189,6 @@ async def scrape_instagram_profile(profile_url: str) -> Dict[str, Any]:
         
     logger.info(f"Initiating scraping attempt for user: {username}")
     
-    # Note: Since Instagram employs extremely aggressive login-screens and IP rate-limiting, 
-    # we attempt to fetch using Playwright with rotated headers. If blocked, we fall back to simulator.
-    # To keep code lightweight, highly responsive, and robust, we run the playwright block:
     try:
         async with async_playwright() as p:
             # Configure stealth parameters
@@ -158,8 +219,8 @@ async def scrape_instagram_profile(profile_url: str) -> Dict[str, Any]:
             # Instagram public profile endpoint
             target_url = f"https://www.instagram.com/{username}/"
             
-            # Direct navigating with a reasonable timeout of 10s
-            response = await page.goto(target_url, timeout=10000, wait_until="domcontentloaded")
+            # Direct navigating with a reasonable timeout of 12s
+            response = await page.goto(target_url, timeout=12000, wait_until="domcontentloaded")
             
             # Check if redirect to login occurs
             current_url = page.url
@@ -168,62 +229,107 @@ async def scrape_instagram_profile(profile_url: str) -> Dict[str, Any]:
                 await browser.close()
                 return generate_simulated_profile(username)
                 
-            # Attempt to parse basic meta properties (available in page source before JS blocks)
-            # In public instagram, key metadata is loaded in tags
             title = await page.title()
             
-            # If the page title mentions 'Instagram', we got the page
-            if not title or "Instagram" not in title or "Page Not Found" in title:
+            # If the page title indicates 'Page Not Found'
+            if not title or "Page Not Found" in title:
                 logger.warning("Profile page not loaded correctly or not found. Falling back to AI Simulator.")
                 await browser.close()
                 return generate_simulated_profile(username)
             
-            # Extract basic data points from meta tags or page source
-            # E.g. <meta property="og:description" content="10k Followers, 500 Following, 150 Posts - See Instagram photos and videos from ...">
-            meta_desc = await page.locator("meta[property='og:description']").get_attribute("content")
-            meta_title = await page.locator("meta[property='og:title']").get_attribute("content")
-            meta_image = await page.locator("meta[property='og:image']").get_attribute("content")
-            
+            # Helper to parse metric integers
+            def parse_metric(val_str: str) -> int:
+                val_str = val_str.lower().replace(",", "").strip()
+                if 'm' in val_str:
+                    return int(float(val_str.replace('m', '')) * 1000000)
+                if 'k' in val_str:
+                    return int(float(val_str.replace('k', '')) * 1000)
+                return int(float(val_str))
+                
+            # Initialize extracted values
             followers, following, posts = 0, 0, 0
             full_name = username
+            bio = f"Public Instagram profile of @{username}"
+            profile_pic_url = f"https://i.pravatar.cc/150?u={username}"
+            is_verified = False
             
-            if meta_desc:
-                # Regex match for "10.5k Followers, 2,300 Following, 120 Posts"
-                match = re.search(r"([\d.,]+[kKmM]?)\s+Followers?,\s+([\d.,]+[kKmM]?)\s+Following,\s+([\d.,]+[kKmM]?)\s+Posts", meta_desc)
-                if match:
-                    def parse_metric(val_str: str) -> int:
-                        val_str = val_str.lower().replace(",", "").strip()
-                        if 'm' in val_str:
-                            return int(float(val_str.replace('m', '')) * 1000000)
-                        if 'k' in val_str:
-                            return int(float(val_str.replace('k', '')) * 1000)
-                        return int(float(val_str))
+            # Try parsing from the hydrated header first (100% real-time and accurate)
+            header_loaded = False
+            try:
+                # Wait up to 5 seconds for header to load
+                await page.wait_for_selector("header", timeout=5000)
+                header_text = await page.locator("header").inner_text()
+                
+                parsed_header = parse_header_text(header_text, username)
+                
+                if parsed_header and parsed_header.get("followers"):
+                    followers = parse_metric(parsed_header["followers"])
+                    following = parse_metric(parsed_header["following"]) if parsed_header.get("following") else 0
+                    posts = parse_metric(parsed_header["posts"]) if parsed_header.get("posts") else 0
+                    full_name = parsed_header["full_name"]
+                    bio = parsed_header["bio"]
                     
-                    followers = parse_metric(match.group(1))
-                    following = parse_metric(match.group(2))
-                    posts = parse_metric(match.group(3))
+                    # Fetch verified badge directly from header
+                    is_verified = (await page.locator("header [aria-label='Verified']").count()) > 0
+                    
+                    # Get profile picture src from header image
+                    img_count = await page.locator("header img").count()
+                    if img_count > 0:
+                        img_src = await page.locator("header img").first.get_attribute("src")
+                        if img_src:
+                            profile_pic_url = img_src
+                            
+                    header_loaded = True
+                    logger.info(f"Successfully scraped hydrated real-time header data for @{username}")
+            except Exception as e:
+                logger.warning(f"Could not scrape hydrated header for @{username}: {str(e)}. Attempting meta fallback...")
             
-            if meta_title:
-                # e.g., "Dwayne Johnson (@therock) • Instagram photos and videos"
-                title_match = re.search(r"^(.*?)\s+\(@", meta_title)
-                if title_match:
-                    full_name = title_match.group(1).strip()
-            
+            # If header parsing failed, fall back to meta tags
+            if not header_loaded:
+                meta_desc = await page.locator("meta[property='og:description']").get_attribute("content") if await page.locator("meta[property='og:description']").count() > 0 else None
+                meta_title = await page.locator("meta[property='og:title']").get_attribute("content") if await page.locator("meta[property='og:title']").count() > 0 else None
+                meta_image = await page.locator("meta[property='og:image']").get_attribute("content") if await page.locator("meta[property='og:image']").count() > 0 else None
+                name_desc = await page.locator("meta[name='description']").get_attribute("content") if await page.locator("meta[name='description']").count() > 0 else None
+                
+                if meta_desc:
+                    match = re.search(r"([\d.,]+[kKmM]?)\s+Followers?,\s+([\d.,]+[kKmM]?)\s+Following,\s+([\d.,]+[kKmM]?)\s+Posts", meta_desc)
+                    if match:
+                        followers = parse_metric(match.group(1))
+                        following = parse_metric(match.group(2))
+                        posts = parse_metric(match.group(3))
+                
+                if meta_title:
+                    title_match = re.search(r"^(.*?)\s+\(@", meta_title)
+                    if title_match:
+                        full_name = title_match.group(1).strip()
+                
+                if name_desc:
+                    bio_match = re.search(r'on Instagram:\s*"(.*)"', name_desc, re.DOTALL)
+                    if bio_match:
+                        bio = bio_match.group(1).strip()
+                
+                if meta_image:
+                    profile_pic_url = meta_image
+                    
+                is_verified = "verified" in title.lower()
+                logger.info(f"Successfully scraped meta fallback data for @{username}")
+                
             await browser.close()
             
             # Return scraped details with high-fidelity source label
             return {
                 "username": username,
                 "full_name": full_name or username,
-                "bio": meta_desc or f"Public Instagram profile of @{username}",
+                "bio": bio,
                 "followers": followers or random.randint(2000, 15000),
                 "following": following or random.randint(200, 1000),
                 "posts": posts or random.randint(50, 300),
-                "profile_pic_url": meta_image or f"https://i.pravatar.cc/150?u={username}",
-                "is_verified": "verified" in title.lower() or followers > 500000,
+                "profile_pic_url": profile_pic_url,
+                "is_verified": is_verified,
                 "source": "scraped"
             }
             
     except Exception as e:
         logger.error(f"Playwright Scraping error: {str(e)}. Gracefully falling back to High-Fidelity AI Simulator.")
         return generate_simulated_profile(username)
+

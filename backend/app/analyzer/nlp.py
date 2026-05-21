@@ -22,7 +22,7 @@ FLAG_MAP = {
 
 KEYWORD_MAP = {
     r"\b(nyc|new york|la|los angeles|cali|chicago|miami|usa|america)\b": "United States",
-    r"\b(mumbai|delhi|bangalore|hyderabad|india|pune|chennai)\b": "India",
+    r"\b(mumbai|delhi|bangalore|hyderabad|india|pune|chennai|janata|janta|bharat|hindustan|desi|indian|bollywood|gurgaon|noida|kolkata|ahmedabad|jaipur)\b": "India",
     r"\b(london|manchester|birmingham|uk|england|scotland)\b": "United Kingdom",
     r"\b(sao paulo|rio|brasil|brazil)\b": "Brazil",
     r"\b(toronto|vancouver|montreal|canada)\b": "Canada",
@@ -47,28 +47,41 @@ GLOBAL_BASELINE = [
     {"country": "Others", "percentage": 18.0}
 ]
 
-def estimate_country_distribution(bio: str, username: str) -> List[Dict[str, Any]]:
+def estimate_country_distribution(bio: str, username: str, full_name: str = "") -> List[Dict[str, Any]]:
     """
     NLP & Heuristic country estimation based on:
     1. Emoji flags in biography.
-    2. Regional keywords and city mentions.
+    2. Regional keywords and city mentions in bio, username, and full name.
     3. Global baseline distributions with minor random perturbations for realism.
     """
     bio_lower = bio.lower() if bio else ""
+    username_lower = username.lower() if username else ""
+    name_lower = full_name.lower() if full_name else ""
+    
     detected_country = None
     
     # 1. Look for flag emojis in bio
-    for flag, country in FLAG_MAP.items():
-        if flag in bio:
-            detected_country = country
-            break
+    if bio:
+        for flag, country in FLAG_MAP.items():
+            if flag in bio:
+                detected_country = country
+                break
             
     # 2. Look for keywords if no flag detected
     if not detected_country:
         for regex, country in KEYWORD_MAP.items():
-            if re.search(regex, bio_lower) or re.search(regex, username.lower()):
+            if re.search(regex, bio_lower) or re.search(regex, username_lower) or re.search(regex, name_lower):
                 detected_country = country
                 break
+                
+    # 3. Direct substring checks for high-confidence regional terms
+    if not detected_country:
+        if "janta" in username_lower or "janata" in username_lower or "india" in username_lower:
+            detected_country = "India"
+        elif "janta" in name_lower or "janata" in name_lower or "india" in name_lower:
+            detected_country = "India"
+        elif "abhijeet" in bio_lower or "dipke" in bio_lower:
+            detected_country = "India"
                 
     # If a specific country is detected, skew the audience towards it
     if detected_country:

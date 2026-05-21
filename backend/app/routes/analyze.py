@@ -48,13 +48,23 @@ async def analyze_profile(request: AnalyzeRequest, db: AsyncSession = Depends(ge
         latest_run = run_result.scalars().first()
         
         if latest_run:
-            logger.info(f"Returning cached analysis for username: {username}")
-            return AnalysisResponse(
-                profile=ProfileOut.model_validate(db_profile),
-                analysis=AnalysisRunOut.model_validate(latest_run),
-                cached=True,
-                source=latest_run.countries_json[0].get("source", "simulated") if latest_run.countries_json else "simulated"
-            )
+            # Check if previous analysis run was simulated. If so, we bypass the cache to try scraping real data.
+            is_simulated = True
+            if latest_run.countries_json:
+                first_country = latest_run.countries_json[0]
+                if first_country.get("source") == "scraped":
+                    is_simulated = False
+                    
+            if not is_simulated:
+                logger.info(f"Returning cached analysis for username: {username}")
+                return AnalysisResponse(
+                    profile=ProfileOut.model_validate(db_profile),
+                    analysis=AnalysisRunOut.model_validate(latest_run),
+                    cached=True,
+                    source="scraped"
+                )
+            else:
+                logger.info(f"Bypassing cached simulated run for username: {username} to attempt real scrape.")
             
     # 2. Not cached / stale - Scrape public profile info (with simulator fallback)
     logger.info(f"Running fresh analysis for username: {username}")
@@ -73,7 +83,8 @@ async def analyze_profile(request: AnalyzeRequest, db: AsyncSession = Depends(ge
     # 4. Estimate Country demographics (NLP-based)
     countries = estimate_country_distribution(
         bio=profile_data["bio"],
-        username=profile_data["username"]
+        username=profile_data["username"],
+        full_name=profile_data["full_name"]
     )
     
     # Tag primary country json with source info
