@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight, Scale, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function CompareModal({ isOpen, onClose }) {
   const [url1, setUrl1] = useState('');
@@ -20,7 +21,7 @@ export default function CompareModal({ isOpen, onClose }) {
     
     try {
       // Direct call to running FastAPI port
-      const response = await axios.post('http://localhost:8000/api/v1/compare', {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/compare`, {
         profile_url_1: url1,
         profile_url_2: url2
       });

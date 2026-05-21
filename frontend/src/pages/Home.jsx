@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Search, ShieldAlert, History } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function Home({ onAnalyzeStart, onAnalyzeSuccess, onAnalyzeFail, setUsername }) {
   const [profileUrl, setProfileUrl] = useState('');
@@ -15,7 +16,7 @@ export default function Home({ onAnalyzeStart, onAnalyzeSuccess, onAnalyzeFail, 
 
   const fetchHistory = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/v1/history');
+      const response = await axios.get(`${API_BASE_URL}/api/v1/history`);
       setHistory(response.data);
     } catch (err) {
       console.error('Failed to load history runs');
@@ -108,7 +109,7 @@ export default function Home({ onAnalyzeStart, onAnalyzeSuccess, onAnalyzeFail, 
     onAnalyzeStart();
 
     try {
-      const response = await axios.post('http://localhost:8000/api/v1/analyze', {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/analyze`, {
         profile_url: profileUrl
       });
       setUsername(response.data.profile.username);

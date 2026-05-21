@@ -1,6 +1,7 @@
 import React from 'react';
 import { Terminal } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
+import { API_BASE_URL } from '../config';
 
 export default function ApiDocs() {
   return (
@@ -27,7 +28,7 @@ export default function ApiDocs() {
           <div>
             <h4 className="font-bold text-slate-300 uppercase tracking-wider">Endpoint</h4>
             <div className="bg-slate-950/40 rounded-xl p-3 border border-white/5 font-mono text-[11px] text-purple-300 mt-2 select-all">
-              http://localhost:8000/api/v1/analyze
+              {API_BASE_URL}/api/v1/analyze
             </div>
           </div>
 

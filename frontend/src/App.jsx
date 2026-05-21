@@ -8,6 +8,7 @@ import ApiDocs from './pages/ApiDocs';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import SkeletonLoader from './components/SkeletonLoader';
 import CompareModal from './components/CompareModal';
+import { API_BASE_URL } from './config';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
@@ -33,7 +34,7 @@ export default function App() {
     setIsLoading(true);
     setActivePage('dashboard');
     try {
-      const response = await axios.post('http://localhost:8000/api/v1/analyze', {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/analyze`, {
         profile_url: `https://instagram.com/${un}`
       });
       setUsername(response.data.profile.username);
